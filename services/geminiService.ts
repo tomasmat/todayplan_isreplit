@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { DayPlan, PlanRequest, UserProfile, ActivityOption, TransportMode, Language, ActivityData, ItineraryItem } from "../types";
 import { LANGUAGES } from "../constants";
 
@@ -366,4 +366,93 @@ export const finalizeItinerary = async (
     console.error("JSON Parse Error:", e);
     throw new Error("Failed to parse finalized plan");
   }
+};
+
+// Asks Gemini to pick up to 10 best-fitting activity ids from the predefined
+// catalog, given the location, group, time window, meals, and budget.
+// Returns "category_key:id" strings — same format as request.selectedActivityIds.
+export const autoSelectActivities = async (
+  user: UserProfile,
+  request: PlanRequest,
+  activityData: ActivityData,
+  language: Language = 'en',
+): Promise<string[]> => {
+  const ai = getGeminiClient();
+  const languageName = LANGUAGES.find(l => l.code === language)?.name || 'English';
+
+  // Flatten the catalog the AI is allowed to pick from.
+  const catalogLines: string[] = [];
+  Object.entries(activityData).forEach(([catKey, cat]) => {
+    cat.activities
+      .filter(a => a.isActive !== false)
+      .forEach(a => {
+        catalogLines.push(`- "${catKey}:${a.id}" -> ${cat.category_name} / ${a.name}: ${a.description}`);
+      });
+  });
+
+  const companions = user.companions.filter(c => request.selectedCompanionIds.includes(c.id));
+  const peopleList: string[] = [];
+  if (request.includeUser) {
+    peopleList.push(`${user.name} (${user.age || '?'}, ${user.relation || 'Organizer'})`);
+  }
+  companions.forEach(c => peopleList.push(`${c.name} (${c.age}, ${c.relation})`));
+
+  const includeFood = request.meals.length > 0;
+
+  const prompt = `
+You are picking the top activities for a one-day trip. Output AT MOST 10 ids
+from the catalog below — choose the ones that best fit the location, group,
+time window, meals and budget. Quality over quantity.
+
+LOCATION: ${request.location.name || 'unknown'} (lat ${request.location.lat}, lng ${request.location.lng}), within ~${request.radius} km.
+GROUP: ${peopleList.join(", ") || "Solo traveller"}
+TIME WINDOW: ${request.startTime} - ${request.endTime}
+PAID MEALS: ${request.meals.join(", ") || "none"}
+BUDGET: ${request.budget}
+LANGUAGE OF DESCRIPTIONS: ${languageName}
+
+RULES:
+- Return ONLY ids exactly as they appear (e.g. "walking_urban_exploration:3").
+- Maximum 10 ids. Fewer is fine if the location is small.
+- ${includeFood
+    ? "Because meals are selected, include 1-2 food/cuisine ids that fit local cuisine."
+    : "Do NOT pick ids from 'food_drink_experiences' or 'cuisine_types'."}
+- Prefer iconic, walkable, family/group-appropriate options for the given ages.
+- Avoid duplicates.
+
+CATALOG:
+${catalogLines.join("\n")}
+`;
+
+  const response = await generateWithRetry(ai, {
+    model: "gemini-2.5-flash",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          ids: { type: Type.ARRAY, items: { type: Type.STRING } },
+        },
+        required: ["ids"],
+      },
+    },
+  });
+
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(response.text || "{}");
+  } catch (e) {
+    console.warn("autoSelectActivities: failed to parse AI response", e);
+    return [];
+  }
+
+  const ids: string[] = Array.isArray(parsed.ids) ? parsed.ids : [];
+
+  // Defensive filter: drop anything not in the catalog (Gemini can hallucinate)
+  const validIds = new Set<string>();
+  Object.entries(activityData).forEach(([catKey, cat]) => {
+    cat.activities.forEach(a => validIds.add(`${catKey}:${a.id}`));
+  });
+  return ids.filter(id => validIds.has(id)).slice(0, 10);
 };

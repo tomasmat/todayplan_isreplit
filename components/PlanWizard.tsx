@@ -9,6 +9,7 @@ import {
 import { Button } from './Button';
 import { UserProfile, PlanRequest, ActivityData, Category } from '../types';
 import { GoogleMap } from './GoogleMap';
+import { autoSelectActivities } from '../services/geminiService';
 
 interface PlanWizardProps {
   user: UserProfile;
@@ -52,6 +53,8 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [radiusMode, setRadiusMode] = useState<'walking' | 'driving'>('driving');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isAutoSelecting, setIsAutoSelecting] = useState(false);
+  const [autoSelectError, setAutoSelectError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Payment Form State
@@ -185,6 +188,32 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
           ...allIds.filter(id => !prev.selectedActivityIds.includes(id))
         ]
       }));
+    }
+  };
+
+  const handleAutoSelect = async () => {
+    if (isAutoSelecting) return;
+    setIsAutoSelecting(true);
+    setAutoSelectError(null);
+    try {
+      const ids = await autoSelectActivities(user, request, activityData);
+      if (ids.length === 0) {
+        setAutoSelectError(t.wizard.autoSelectEmpty || 'AI could not pick activities, please choose manually.');
+        return;
+      }
+      setRequest(prev => ({ ...prev, selectedActivityIds: ids }));
+      // Auto-expand any category that received picks so the user can see them
+      const touched = new Set(ids.map(id => id.split(':')[0]));
+      setCollapsedCategories(prev => {
+        const next = new Set(prev);
+        touched.forEach(k => next.delete(k));
+        return next;
+      });
+    } catch (err: any) {
+      console.warn('Auto-select failed', err);
+      setAutoSelectError(t.wizard.autoSelectFailed || 'AI auto-select failed. Try again or pick manually.');
+    } finally {
+      setIsAutoSelecting(false);
     }
   };
 
@@ -536,6 +565,32 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
             ))}
          </div>
       </div>
+
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-semibold text-sm">
+            <Sparkles className="w-4 h-4" /> {t.wizard.autoSelectTitle || 'Let AI pick the best for you'}
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+            {t.wizard.autoSelectSubtitle || 'AI suggests up to 10 best activities for this location and group.'}
+          </p>
+        </div>
+        <Button
+          onClick={handleAutoSelect}
+          loading={isAutoSelecting}
+          disabled={isAutoSelecting || request.location.lat === 0}
+          size="sm"
+          className="shrink-0"
+        >
+          <Sparkles className="w-4 h-4 mr-2" />
+          {t.wizard.autoSelectButton || 'Auto-Select with AI'}
+        </Button>
+      </div>
+      {autoSelectError && (
+        <div className="mb-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+          {autoSelectError}
+        </div>
+      )}
 
       <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
         {(Object.entries(activityData) as [string, Category][]).map(([key, category]) => {
