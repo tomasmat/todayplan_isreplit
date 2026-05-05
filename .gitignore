@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables — NEVER commit these (contain API keys)
+.env
+.env.local
+.env.*.local
+
+# Android build artifacts and signing secrets
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+android/.idea/
+*.jks
+*.keystore
+
+# Editor
+.vscode/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db

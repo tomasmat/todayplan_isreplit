@@ -1,0 +1,7 @@
+{
+  "name": "TodayPlan",
+  "description": "AI-powered daily itinerary planner customized for you and your companions.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

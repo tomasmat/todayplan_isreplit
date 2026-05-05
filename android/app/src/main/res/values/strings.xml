@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TodayPlan</string>
+    <string name="title_activity_main">TodayPlan</string>
+    <string name="package_name">com.todayplan.app</string>
+    <string name="custom_url_scheme">com.todayplan.app</string>
+</resources>
