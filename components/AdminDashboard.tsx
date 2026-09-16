@@ -8,6 +8,8 @@ interface AdminDashboardProps {
   onUpdateActivities: (data: ActivityData) => void;
   planCost: number;
   onUpdateCost: (cost: number) => void;
+  adsEnabled: boolean;
+  onUpdateAdsEnabled: (enabled: boolean) => void;
   planLogs: DayPlan[];
   onClose: () => void;
 }
@@ -17,6 +19,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateActivities,
   planCost,
   onUpdateCost,
+  adsEnabled,
+  onUpdateAdsEnabled,
   planLogs,
   onClose
 }) => {
@@ -136,6 +140,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </Button>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">This amount will be displayed in the payment step of the Plan Wizard.</p>
+                    </div>
+
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Advertisement revenue</label>
+                        <button
+                            type="button"
+                            onClick={() => onUpdateAdsEnabled(!adsEnabled)}
+                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-colors ${
+                              adsEnabled
+                                ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20'
+                                : 'border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800'
+                            }`}
+                        >
+                            <div className="text-left">
+                                <p className="font-semibold text-slate-900 dark:text-white">
+                                    {adsEnabled ? 'Ads enabled' : 'Ads disabled'}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Users can watch a rewarded ad to generate a plan for free. Banner ads appear on the dashboard.
+                                </p>
+                            </div>
+                            <span className={`ml-3 shrink-0 w-11 h-6 rounded-full relative transition-colors ${adsEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${adsEnabled ? 'translate-x-5' : ''}`} />
+                            </span>
+                        </button>
                     </div>
                 </div>
             )}

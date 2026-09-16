@@ -12,6 +12,7 @@
     "cap:init": "npx cap init TodayPlan com.todayplan.app --web-dir dist"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.1.0",
     "@capacitor-community/keep-awake": "^8.0.1",
     "@capacitor/android": "^8.3.0",
     "@capacitor/app": "^8.1.0",

@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { UserProfile, Language } from '../types';
 import { LanguageSelector } from './LanguageSelector';
 import { TRANSLATIONS } from '../translations';
+import { WebAdBanner } from './WebAdBanner';
 
 const syncNativeSystemBarsToTheme = async (isDark: boolean) => {
   if (!Capacitor.isNativePlatform()) return;
@@ -30,6 +31,8 @@ interface LayoutProps {
   language: Language;
   onLanguageChange: (lang: Language) => void;
   onAdminClick?: () => void; // New prop for admin navigation
+  showWebBanner?: boolean;
+  nativeBannerOffset?: boolean;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ 
@@ -39,7 +42,9 @@ export const Layout: React.FC<LayoutProps> = ({
   onGoHome,
   language,
   onLanguageChange,
-  onAdminClick
+  onAdminClick,
+  showWebBanner = false,
+  nativeBannerOffset = false,
 }) => {
   const t = TRANSLATIONS[language];
   const [isDark, setIsDark] = useState(false);
@@ -73,7 +78,7 @@ export const Layout: React.FC<LayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300 overflow-x-hidden">
+    <div className={`min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300 overflow-x-hidden ${nativeBannerOffset ? 'pb-16' : ''}`}>
       <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between overflow-hidden">
           <div className="flex items-center space-x-2 cursor-pointer" onClick={onGoHome}>
@@ -114,6 +119,7 @@ export const Layout: React.FC<LayoutProps> = ({
       <main className="flex-grow">
         {children}
       </main>
+      {showWebBanner && <WebAdBanner t={t} />}
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between gap-2">
           <span className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">
