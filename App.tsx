@@ -17,6 +17,8 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { supabase, loadProfile, saveProfile, createProfileForNewUser, signOut, loadUserPlans, savePlan } from './services/supabaseService';
 import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { hideBannerAd, initializeAds, isNativeAdsAvailable, showBannerAd } from './services/adsService';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -48,8 +50,58 @@ const App: React.FC = () => {
   // Admin Config States
   const [activityData, setActivityData] = useState<ActivityData>(TOURIST_ACTIVITIES);
   const [planCost, setPlanCost] = useState<number>(2.00);
+  const [adsEnabled, setAdsEnabled] = useState<boolean>(true);
+  const [nativeBannerVisible, setNativeBannerVisible] = useState(false);
 
   const activePlan = plans.find(p => p.id === selectedPlanId) || null;
+
+  // Local-only shortcut so the unlock step can be previewed without a backend login:
+  // open http://localhost:3000/#preview-unlock
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (window.location.hash !== '#preview-unlock') return;
+    setUser({
+      name: 'Preview',
+      email: 'preview@todayplan.app',
+      age: 30,
+      relation: 'Organizer',
+      companions: [],
+      reviews: [],
+    });
+    setState('wizard');
+  }, []);
+
+  const showAdsOnScreen =
+    adsEnabled &&
+    !!user &&
+    (state === 'dashboard' || state === 'result') &&
+    !isGenerating &&
+    !error &&
+    !showApiKeyPrompt;
+
+  // Initialize AdMob once (no-op on web)
+  useEffect(() => {
+    initializeAds().catch(() => {});
+  }, []);
+
+  // Native banner on dashboard/result; hide during wizard so it doesn't cover the pay/ad choice
+  useEffect(() => {
+    let cancelled = false;
+    const syncBanner = async () => {
+      if (showAdsOnScreen && isNativeAdsAvailable()) {
+        const shown = await showBannerAd();
+        if (!cancelled) setNativeBannerVisible(shown);
+      } else {
+        await hideBannerAd();
+        if (!cancelled) setNativeBannerVisible(false);
+      }
+    };
+    syncBanner();
+    return () => {
+      cancelled = true;
+      hideBannerAd().catch(() => {});
+    };
+  }, [showAdsOnScreen]);
 
   // Request notification permission once on mount
   useEffect(() => {
@@ -564,6 +616,7 @@ const App: React.FC = () => {
             t={t}
             activityData={activityData}
             planCost={planCost}
+            adsEnabled={adsEnabled}
           />
         ) : null;
 
@@ -585,6 +638,8 @@ const App: React.FC = () => {
             onUpdateActivities={setActivityData}
             planCost={planCost}
             onUpdateCost={setPlanCost}
+            adsEnabled={adsEnabled}
+            onUpdateAdsEnabled={setAdsEnabled}
             planLogs={plans}
             onClose={() => setState(user ? 'dashboard' : 'landing')}
           />
@@ -603,6 +658,8 @@ const App: React.FC = () => {
       language={language}
       onLanguageChange={setLanguage}
       onAdminClick={() => setState('admin')}
+      showWebBanner={showAdsOnScreen && !Capacitor.isNativePlatform()}
+      nativeBannerOffset={nativeBannerVisible}
     >
       {renderContent()}
     </Layout>

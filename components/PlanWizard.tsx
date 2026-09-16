@@ -4,12 +4,14 @@ import {
   ChevronDown, ChevronUp, Car,
   // New icons
   Footprints, Waves, Utensils, ChefHat, Ticket, Smile, CloudRain, Sparkles, Martini, ShoppingBag, Coffee, Sun, Moon,
-  Lock, AlertCircle, ShieldCheck, RefreshCw
+  Lock, AlertCircle, ShieldCheck, RefreshCw, Play
 } from 'lucide-react';
 import { Button } from './Button';
 import { UserProfile, PlanRequest, ActivityData, Category } from '../types';
 import { GoogleMap } from './GoogleMap';
 import { autoSelectActivities } from '../services/geminiService';
+import { showRewardedAd } from '../services/adsService';
+import { RewardedAdModal } from './RewardedAdModal';
 
 interface PlanWizardProps {
   user: UserProfile;
@@ -18,6 +20,7 @@ interface PlanWizardProps {
   t: any; // Translation object
   activityData: ActivityData; // Added dynamic data
   planCost: number; // Added dynamic cost
+  adsEnabled?: boolean;
 }
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -35,7 +38,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 
 const FOOD_CATEGORIES = ["food_drink_experiences", "cuisine_types"];
 
-export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel, t, activityData, planCost }) => {
+export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel, t, activityData, planCost, adsEnabled = true }) => {
   const [step, setStep] = useState(1);
   const [request, setRequest] = useState<PlanRequest>({
     location: { lat: 0, lng: 0 },
@@ -56,6 +59,10 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
   const [isAutoSelecting, setIsAutoSelecting] = useState(false);
   const [autoSelectError, setAutoSelectError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [unlockChoice, setUnlockChoice] = useState<'choose' | 'pay'>(adsEnabled ? 'choose' : 'pay');
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [showWebRewarded, setShowWebRewarded] = useState(false);
+  const [adError, setAdError] = useState<string | null>(null);
 
   // Payment Form State
   const [cardNumber, setCardNumber] = useState('');
@@ -306,6 +313,26 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
       setIsProcessingPayment(false);
       onSubmit(request);
     }, 2000);
+  };
+
+  const handleWatchAd = async () => {
+    if (isWatchingAd) return;
+    setAdError(null);
+    setIsWatchingAd(true);
+    try {
+      const result = await showRewardedAd();
+      if (result === 'rewarded') {
+        onSubmit(request);
+      } else if (result === 'web') {
+        setShowWebRewarded(true);
+      } else {
+        setAdError(t.wizard.watchAdError);
+      }
+    } catch {
+      setShowWebRewarded(true);
+    } finally {
+      setIsWatchingAd(false);
+    }
   };
 
   const renderStep1_Who = () => (
@@ -694,16 +721,8 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
     </div>
   );
 
-  const renderStep4_Payment = () => (
-    <div className="text-center space-y-8 py-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t.wizard.step4Title}</h2>
-        <p className="text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-2">
-          {t.wizard.step4Subtitle}
-        </p>
-      </div>
-
-      <div className="max-w-md mx-auto">
+  const renderPayForm = () => (
+    <div className="max-w-md mx-auto">
         <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 flex justify-between items-center">
             <div className="text-left">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">{t.wizard.total}</p>
@@ -812,15 +831,98 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
             
             <div className="mt-4 flex justify-center items-center text-[10px] text-slate-400 dark:text-slate-500">
                 <Lock className="w-3 h-3 mr-1" />
-                Payments are securely processed by Stripe.
+                {t.wizard.secure}
             </div>
         </form>
       </div>
+  );
+
+  const renderStep4_Payment = () => (
+    <div className="text-center space-y-8 py-6">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t.wizard.step4Title}</h2>
+        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-2">
+          {t.wizard.step4Subtitle}
+        </p>
+      </div>
+
+      {adsEnabled && unlockChoice === 'choose' ? (
+        <div className="max-w-md mx-auto space-y-4">
+          <button
+            type="button"
+            onClick={handleWatchAd}
+            disabled={isWatchingAd}
+            className="w-full text-left p-5 rounded-2xl border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all shadow-sm disabled:opacity-60"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                <Play className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-slate-900 dark:text-white">{t.wizard.watchAdTitle}</h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                    {t.wizard.freeLabel}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{t.wizard.watchAdSubtitle}</p>
+                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mt-3">
+                  {isWatchingAd ? t.wizard.watchAdLoading : t.wizard.watchAdBtn}
+                </p>
+              </div>
+            </div>
+          </button>
+
+          {adError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-start">
+              <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+              {adError}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 text-xs uppercase tracking-wider text-slate-400 font-semibold">
+            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+            {t.wizard.orDivider}
+            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setUnlockChoice('pay')}
+            className="w-full text-left p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600 transition-all"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-slate-900 dark:bg-slate-700 text-white flex items-center justify-center shrink-0">
+                <CreditCard className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-slate-900 dark:text-white">{t.wizard.payToSkipTitle}</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{t.wizard.payToSkipSubtitle}</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-3">
+                  {(t.wizard.choosePay || 'Pay €{amount}').replace('{amount}', planCost.toFixed(2))}
+                </p>
+              </div>
+            </div>
+          </button>
+        </div>
+      ) : (
+        renderPayForm()
+      )}
     </div>
   );
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
+      {showWebRewarded && (
+        <RewardedAdModal
+          t={t}
+          onCancel={() => setShowWebRewarded(false)}
+          onComplete={() => {
+            setShowWebRewarded(false);
+            onSubmit(request);
+          }}
+        />
+      )}
       {/* Progress Bar */}
       <div className="mb-8">
         <div className="flex justify-between mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -846,7 +948,17 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
 
       <div className="mt-6 flex justify-between">
         {step > 1 && (
-          <Button variant="outline" onClick={() => setStep(step - 1)} className="dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (step === 4 && adsEnabled && unlockChoice === 'pay') {
+                setUnlockChoice('choose');
+                return;
+              }
+              setStep(step - 1);
+            }}
+            className="dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
             <ChevronLeft className="w-4 h-4 mr-1" /> {t.wizard.back}
           </Button>
         )}
@@ -857,7 +969,10 @@ export const PlanWizard: React.FC<PlanWizardProps> = ({ user, onSubmit, onCancel
         {step < 4 && (
           <Button 
             className="ml-auto" 
-            onClick={() => setStep(step + 1)}
+            onClick={() => {
+              if (step === 3) setUnlockChoice(adsEnabled ? 'choose' : 'pay');
+              setStep(step + 1);
+            }}
             disabled={
               (step === 1 && !request.includeUser && request.selectedCompanionIds.length === 0) ||
               (step === 2 && (request.location.lat === 0 || !request.date || !request.startTime || !request.endTime)) ||
