@@ -55,6 +55,22 @@ const App: React.FC = () => {
 
   const activePlan = plans.find(p => p.id === selectedPlanId) || null;
 
+  // Local-only shortcut so the unlock step can be previewed without a backend login:
+  // open http://localhost:3000/#preview-unlock
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (window.location.hash !== '#preview-unlock') return;
+    setUser({
+      name: 'Preview',
+      email: 'preview@todayplan.app',
+      age: 30,
+      relation: 'Organizer',
+      companions: [],
+      reviews: [],
+    });
+    setState('wizard');
+  }, []);
+
   const showAdsOnScreen =
     adsEnabled &&
     !!user &&
